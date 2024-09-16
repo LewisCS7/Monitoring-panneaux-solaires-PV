@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>Server ESP32</title>
+
+        <!-- Inclure Bootstrap CSS -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+        <!-- Inclure Bootstrap JavaScript -->
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+        <!-- Inclure jQuery -->
+        <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+        <!-- Inclure Popper.js -->
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+        <!-- Inclure Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Inclure votre script JavaScript -->
+        <script type="text/javascript" src="script.js"></script>
+        <!-- Inclure Font Awesome -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+        <!-- Mode Nuit -->
+        <style>
+            body.dark-mode {
+                background-color: #333;
+                /*color: #7a3131;*/
+                color: #0c0b0b;
+            }
+        </style>
+
+        <!-- Alerte -->
+        <style>
+            /* Animation pour faire clignoter l'icône d'alerte */
+            @keyframes blink {
+                0% { opacity: 1; }
+                50% { opacity: 0; }
+                100% { opacity: 1; }
+            }
+
+            /* Appliquer l'animation à l'icône */
+            .alert i {
+                animation: blink 1s infinite;
+            }
+        </style>
+
+        <script>
+            let ancienRexu1 = "";
+            let ancienRexu2 = "";
+            let ancienRexu3 = "";
+            let ancienRexu4 = "";
+            let ancienRexu5 = "";
+            let ancienRexu6 = "";
+            let labels = [];
+            let puissances = [];
+            let rendements = [];
+            let puissanceChart;
+            let rendementChart;
+            let alertDisplayed = false; // Variable pour suivre l'état de l'alerte
+
+            // Fonction pour afficher l'alerte avec l'icône clignotante et jouer le son
+            function showAlert() {
+                let alertElement = document.getElementById('alert');
+                alertElement.classList.remove('d-none'); // Afficher l'alerte
+                alertSound.play(); // Jouer le son
+            }
+
+            // Fonction pour cacher l'alerte et arrêter le son
+            function hideAlert() {
+                let alertElement = document.getElementById('alert');
+                alertElement.classList.add('d-none'); // Cacher l'alerte
+                alertSound.pause(); // Arrêter le son
+                alertSound.currentTime = 0; // Rembobiner le son au début
+            }
+        
+            function chargerDonnees() {
+                fetch("/lireDonnees")
+                .then(response => response.text())
+                .then(data => {
+                    const [nouveauRexu1, nouveauRexu2, nouveauRexu3, nouveauRexu4, nouveauRexu5, nouveauRexu6] = data.split("/");
+                    // Vérifier si les nouvelles données sont bien formatées
+                    if (nouveauRexu1 !== "" && nouveauRexu2 !== "" && nouveauRexu3 !== "" && nouveauRexu4 !== "" && nouveauRexu5 !== "" && nouveauRexu6 !== "") {
+                    
+                        // Mettre à jour les anciennes valeurs avec les nouvelles
+                        ancienRexu1 = nouveauRexu1;
+                        ancienRexu2 = nouveauRexu2;
+                        ancienRexu3 = nouveauRexu3;
+                        ancienRexu4 = nouveauRexu4;
+                        ancienRexu5 = nouveauRexu5;
+                        ancienRexu6 = nouveauRexu6;
+                        
+                        // Ajouter les nouvelles données aux tableaux
+                        let now = new Date();
+                        labels.push(now.toLocaleTimeString());
+                        puissances.push(parseFloat(nouveauRexu5));
+                        rendements.push(parseFloat(nouveauRexu6));
+
+                        // Limiter les tableaux à une certaine longueur pour éviter les graphiques trop longs
+                        const maxItems = 10;
+                        if (labels.length > maxItems) {
+                            labels.shift();
+                            puissances.shift();
+                            rendements.shift();
+                        }
+
+                        // Afficher les nouvelles données
+                        document.getElementById("r1").innerText = nouveauRexu1 + " A";
+                        document.getElementById("r2").innerText = nouveauRexu2 + " V";
+                        document.getElementById("r3").innerText = nouveauRexu3 + " °C";
+                        document.getElementById("r4").innerText = nouveauRexu4 + " W/m²";
+                        document.getElementById("r5").innerText = nouveauRexu5 + " W";
+                        document.getElementById("r6").innerText = nouveauRexu6 + " %";
+
+                        // Mettre à jour les graphiques
+                        updateCharts();
+
+                        // Vérifier si le rendement est hors de la plage souhaitée
+                        //if (parseFloat(nouveauRexu6) < 15 || parseFloat(nouveauRexu6) > 30) {
+                        if (parseFloat(nouveauRexu6) < 15) {
+                            // Afficher une alerte si elle n'est pas déjà affichée
+                            if (!alertDisplayed) {
+                                showAlert();
+                                alertDisplayed = true;
+                            }
+                        } else {
+                            // Cacher l'alerte si elle est affichée et si la température est dans la plage souhaitée
+                            if (alertDisplayed) {
+                                hideAlert();
+                                alertDisplayed = false;
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("Erreur lors de la récupération des données :", error);
+                });
+            }
+
+            // Fonction pour mettre à jour les graphiques
+            function updateCharts() {
+                // Mettre à jour le graphique de température
+                puissanceChart.data.labels = labels;
+                puissanceChart.data.datasets[0].data = puissances;
+                puissanceChart.update();
+
+                // Mettre à jour le graphique d'humidité
+                rendementChart.data.labels = labels;
+                rendementChart.data.datasets[0].data = rendements;
+                rendementChart.update();
+            }
+
+            // Créer les graphiques lors du chargement de la page
+            document.addEventListener('DOMContentLoaded', function() {
+                // Créer le graphique de Puissance
+                let puissanceCanvas = document.getElementById('puissanceChart');
+                puissanceChart = new Chart(puissanceCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Puissance (W)',
+                            data: [],
+                            backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                            borderColor: 'rgba(40, 167, 69, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+
+                // Créer le graphique de Rendement
+                let rendementCanvas = document.getElementById('rendementChart');
+                rendementChart = new Chart(rendementCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Rendement (%)',
+                            data: [],
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+                
+                // Charger les données toutes les 2 secondes
+                setInterval(chargerDonnees, 2000);
+            });
+        </script>
+    </head>
+
+    <body class="main-content position-relative max-height-vh-100 h-100 border-radius-lg ">
+        <div class="container mt-3">
+            <div class="card-header p-2 pl-3 pr-3 bg-primary text-white d-flex align-items-center justify-content-between">
+                <h1 class="h3 flex-grow-1 text-center">MONITORING PANNEAUX SOLAIRES</h1>
+                <button id="dark-mode-toggle" class="btn btn-primary btn-sm">
+                  <i class="fas fa-moon"></i>
+                </button>
+            </div>
+
+            <!-- Emplacement pour afficher les alertes -->
+            <div id="alert" class="alert alert-danger d-none" style="position: fixed; top: 50%; transform: translateY(-50%); right: 2%; z-index: 100;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px;"></i>
+            </div>
+
+            <div class="card mt-3 mb-1 p-3 text-center">
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 mb-1 g-3">                        
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header p-2 bg-dark text-white text-center">
+                                <div class="text-end pt-1">
+                                    <h6 class="text-sm mb-0 text-capitalize">TEMPERATURE <i class="fas fa-thermometer-half" style="color: rgb(60, 42, 221);"></i> </h6>
+                                </div>
+                            </div>
+                            <hr class="dark horizontal my-0">
+                            <div class="card-footer p-2 text-center">
+                                <p class="display-7"><span id="r3">0 °C</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header p-2 pt-2 bg-dark text-white text-center">
+                                <div class="text-end pt-1">
+                                    <h6 class="text-sm mb-0 text-capitalize">IRRADIATION <i class="fas fa-sun" style="color: rgb(255, 136, 0);"></i> </h6>
+                                </div>
+                            </div>
+                            <hr class="dark horizontal my-0">
+                            <div class="card-footer p-2 text-center">
+                                <p class="display-7"><span id="r4">0 W/m²</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header p-2 pt-2 bg-dark text-white">
+                                <div class="text-end pt-1">
+                                    <h6 class="text-sm mb-0 text-capitalize">INTENSITE <i class="fas fa-bolt" style="color: rgb(212, 235, 10);"></i> </h6>
+                                </div>
+                            </div>
+                            <hr class="dark horizontal my-0">
+                            <div class="card-footer p-2 text-center">
+                                <p class="display-7"><span id="r1">0 A</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header p-2 pt-2 bg-dark text-white text-center">
+                                <div class="text-end pt-1">
+                                    <h6 class="text-sm mb-0 text-capitalize">TENSION <i class="fas fa-plug" style="color: rgb(125, 212, 186);"></i> </h6>
+                                </div>
+                            </div>
+                            <hr class="dark horizontal my-0">
+                            <div class="card-footer p-2 text-center">
+                                <p class="display-7"><span id="r2">0 V</span></p>
+                            </div>
+                        </div>
+                    </div>   
+                </div>
+            </div>
+
+            <!-- Row start -->
+			<div class="card mt-3 mb-3">
+                <div class="card-header p-2 pl-3 pr-3 bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="card-title">GRAPHIQUE</h6>
+                    <button class="btn btn-outline-primary btn-sm ms-auto">
+                        .csv <i class="fas fa-download"></i>
+                    </button>                    
+                </div>
+                <div class="card-body">  
+                    <!-- Row start -->
+                    <div class="row gx-3">
+                        <div class="col-lg-5 col-sm-12 col-12">
+                            <h6 class="text-center mb-3">PUISSANCE</h6>
+                            <canvas id="puissanceChart"></canvas>
+                        </div>
+                        <div class="col-lg-2 col-sm-8 col-8 mx-auto">
+                            <div class="border px-2 py-4 rounded-5 h-100 text-center">
+                                <h6 class="mt-1 mb-3">METRIQUES</h6>
+                                <div class="mb-2">
+                                    <!-- <h2 class="text-success">0 W</h2>-->
+                                    <h2 class="display-7 text-success"><span id="r5">0 W</span></h2>
+                                    <h6 class="text-secondary fw-light">PUISSANCE</h6>
+                                </div>
+                                <div class="mb-2">
+                                    <!--<h2 class="text-danger">0 %</h2>-->
+                                    <h2 class="display-7 text-danger"><span id="r6">0 %</span></h2>
+                                    <h6 class="text-secondary fw-light">RENDEMENT</h6>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-5 col-sm-12 col-12">
+                            <h6 class="text-center mb-3">RENDEMENT</h6>
+                            <canvas id="rendementChart"></canvas>
+                        </div>
+                        
+                    </div>
+                    <!-- Row ends -->
+                </div>
+            </div>
+            <!-- Row ends -->  
+            
+            <footer class="footer border-top ">
+                <div class="container-fluid">
+                    <div class="row align-items-center justify-content-center">
+                        <div class="mb-2 text-center">
+                            <div class="copyright">
+                                Copyright &copy; <script>
+                                    document.write(new Date().getFullYear())
+                                </script>.
+                                Tous droits réservés.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+        
+
+        <!-- Bootstrap JS et jQuery (requis pour Bootstrap) -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+        <!-- Font Awesome JS (si besoin) -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+        <!-- JS pour Mode Nuit -->
+        <script>
+            // Fonction pour basculer entre le mode clair et sombre
+            function toggleDarkMode() {
+                // Ajoute ou supprime la classe 'dark-mode' du corps du document
+                document.body.classList.toggle('dark-mode');
+              
+                // Change de l'icône du bouton en fonction du mode
+                const darkModeToggle = document.getElementById('dark-mode-toggle');
+                if (document.body.classList.contains('dark-mode')) {
+                    darkModeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+                } else {
+                    darkModeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+                }
+            }
+            // Événement de clic sur le bouton pour basculer le mode
+            document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+        </script>
+        <!-- Inclure le son d'alerte -->
+        <!--
+        <audio id="alertSound">
+            <source src="Alerte-rouge.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio> 
+        -->   
+    </body>
+</html>
+
